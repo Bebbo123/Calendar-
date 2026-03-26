@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { TaskService } from '../services/taskService';
-import { Task, Priority, Category } from '../types';
+import { Task, SubTask, Priority, Category, RecurrenceFrequency } from '../types';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -15,21 +15,77 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
   const [category, setCategory] = useState<Category>(Category.Work);
   const [priority, setPriority] = useState<Priority>(Priority.Medium);
   const [notes, setNotes] = useState('');
+  const [subtasks, setSubtasks] = useState<SubTask[]>([]);
+  const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceFrom, setRecurrenceFrom] = useState('');
+  const [recurrenceTo, setRecurrenceTo] = useState('');
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>('daily');
+
+  const addSubTask = () => {
+    if (!newSubTaskTitle.trim()) return;
+
+    setSubtasks(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), title: newSubTaskTitle.trim(), completed: false },
+    ]);
+    setNewSubTaskTitle('');
+  };
+
+  const toggleSubTask = (id: string) => {
+    setSubtasks(prev =>
+      prev.map(st => (st.id === id ? { ...st, completed: !st.completed } : st))
+    );
+  };
+
+  const deleteSubTask = (id: string) => {
+    setSubtasks(prev => prev.filter(st => st.id !== id));
+  };
+
+  const isValidRecurrenceRange = (): boolean => {
+    if (!isRecurring) return true;
+    if (!recurrenceFrom || !recurrenceTo) return false;
+    const from = new Date(recurrenceFrom);
+    const to = new Date(recurrenceTo);
+    return from <= to;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
 
+    if (!isValidRecurrenceRange()) {
+      alert('Intervallo ricorrenza non valido: assicurati che da <= a e siano impostati.');
+      return;
+    }
+
+    const recurrence = isRecurring && recurrenceFrom && recurrenceTo
+      ? {
+          from: new Date(recurrenceFrom),
+          to: new Date(recurrenceTo),
+          frequency: recurrenceFrequency,
+        }
+      : undefined;
+
+    const effectiveDate = recurrence ? new Date(recurrenceFrom) : new Date(date);
+
     const newTask: Omit<Task, 'id'> = {
       title,
-      date: new Date(date),
+      date: effectiveDate,
       category,
       priority,
       notes: notes || undefined,
       completed: false,
+      subtasks,
+      recurrence,
     };
 
-    TaskService.addTask(newTask);
+    if (recurrence) {
+      TaskService.addRecurringTasks(newTask);
+    } else {
+      TaskService.addTask(newTask);
+    }
+
     onTaskAdded();
     onClose();
     // Reset form
@@ -38,6 +94,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
     setCategory(Category.Work);
     setPriority(Priority.Medium);
     setNotes('');
+    setSubtasks([]);
+    setNewSubTaskTitle('');
   };
 
   if (!isOpen) return null;
@@ -73,7 +131,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                if (isRecurring && !recurrenceFrom) {
+                  setRecurrenceFrom(e.target.value);
+                }
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
@@ -120,6 +183,117 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
             />
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                id="recurring"
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="recurring" className="text-sm text-gray-700">
+                Task periodica
+              </label>
+            </div>
+
+            {isRecurring && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Da</label>
+                  <input
+                    type="date"
+                    value={recurrenceFrom}
+                    onChange={(e) => {
+                      setRecurrenceFrom(e.target.value);
+                      if (!date) {
+                        setDate(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">A</label>
+                  <input
+                    type="date"
+                    value={recurrenceTo}
+                    onChange={(e) => setRecurrenceTo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequenza</label>
+                  <select
+                    value={recurrenceFrequency}
+                    onChange={(e) => setRecurrenceFrequency(e.target.value as RecurrenceFrequency)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="daily">Quotidiana</option>
+                    <option value="weekly">Settimanale</option>
+                    <option value="monthly">Mensile</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-md font-medium text-gray-800">Sotto-task</h3>
+            </div>
+
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={newSubTaskTitle}
+                onChange={(e) => setNewSubTaskTitle(e.target.value)}
+                placeholder="Nuova sotto-task..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSubTask())}
+              />
+              <button
+                type="button"
+                onClick={addSubTask}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {subtasks.length === 0 ? (
+                <p className="text-gray-500 text-sm">Nessuna sotto-task</p>
+              ) : (
+                subtasks.map(subtask => (
+                  <div key={subtask.id} className="flex items-center justify-between p-2 bg-white border rounded-lg">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={subtask.completed}
+                        onChange={() => toggleSubTask(subtask.id)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className={subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}>
+                        {subtask.title}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => deleteSubTask(subtask.id)}
+                      className="text-red-500 hover:text-red-700"
+                      aria-label="Elimina sottotask"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Edit } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react';
 import { TaskService } from '../../services/taskService';
-import { Task } from '../../types';
+import { Task, Category, Priority } from '../../types';
 import { getPriorityColor } from '../../utils/priorityUtils';
 import TaskDetailModal from '../../components/TaskDetailModal';
 import {
@@ -29,6 +29,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<'all' | Category>('all');
+  const [filterPriority, setFilterPriority] = useState<'all' | Priority>('all');
 
   useEffect(() => {
     setTasks(TaskService.getTasks());
@@ -40,8 +42,28 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const calendarEnd = endOfWeek(monthEnd);
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
+  const isRecurringTaskOnDay = (task: Task, day: Date): boolean => {
+    if (!task.recurrence) return false;
+
+    const { from, to, frequency } = task.recurrence;
+    if (day < from || day > to) return false;
+
+    switch (frequency) {
+      case 'daily':
+        return true;
+      case 'weekly':
+        return day.getDay() === from.getDay();
+      case 'monthly':
+        return day.getDate() === from.getDate();
+      default:
+        return false;
+    }
+  };
+
   const getTasksForDay = (day: Date) => {
-    return tasks.filter(task => isSameDay(task.date, day));
+    return tasks.filter(task =>
+      isSameDay(task.date, day) || isRecurringTaskOnDay(task, day)
+    );
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -62,7 +84,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
     onTaskUpdate();
   };
 
-  const selectedDayTasks = selectedDay ? getTasksForDay(selectedDay) : [];
+  const selectedDayTasks = selectedDay
+    ? getTasksForDay(selectedDay).filter(task =>
+        (filterCategory === 'all' || task.category === filterCategory) &&
+        (filterPriority === 'all' || task.priority === filterPriority)
+      )
+    : [];
 
   console.log('selectedDay:', selectedDay, 'selectedDayTasks:', selectedDayTasks);
 
@@ -140,16 +167,80 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
           <h3 className="text-lg font-medium text-gray-800 mb-3">
             Task del {selectedDay.toLocaleDateString('it-IT')}
           </h3>
+          <div className="flex flex-wrap gap-3 items-center mb-4">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Categoria</label>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value as 'all' | Category)}
+                className="px-2 py-1 border border-gray-300 rounded-lg"
+              >
+                <option value="all">Tutte</option>
+                <option value={Category.Work}>Lavoro</option>
+                <option value={Category.Personal}>Personale</option>
+                <option value={Category.Finance}>Finanza</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Priorità</label>
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value as 'all' | Priority)}
+                className="px-2 py-1 border border-gray-300 rounded-lg"
+              >
+                <option value="all">Tutte</option>
+                <option value={Priority.Low}>Bassa</option>
+                <option value={Priority.Medium}>Media</option>
+                <option value={Priority.High}>Alta</option>
+                <option value={Priority.Urgent}>Urgente</option>
+              </select>
+            </div>
+          </div>
           {selectedDayTasks.length === 0 ? (
             <p className="text-gray-500">Nessun task per questo giorno</p>
           ) : (
             <div className="space-y-2">
-              {selectedDayTasks.map(task => (
-                <div key={task.id} className="p-3 bg-white rounded-lg shadow-sm border">
-                  <p className="font-medium">{task.title}</p>
-                  <p className="text-sm text-gray-600">{task.category}</p>
-                </div>
-              ))}
+              {selectedDayTasks.map(task => {
+                const completion = TaskService.getTaskCompletionPercentage(task);
+                return (
+                  <div key={task.id} className="p-3 bg-white rounded-lg shadow-sm border">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{task.title}</p>
+                        <p className="text-sm text-gray-600">{task.category}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditTask(task)}
+                          className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                          aria-label={`Modifica ${task.title}`}
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="px-2 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                          aria-label={`Elimina ${task.title}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs text-gray-600 mb-1">
+                        <span>Progresso</span>
+                        <span>{completion}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-green-500 h-2 rounded-full transition-all"
+                          style={{ width: `${completion}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

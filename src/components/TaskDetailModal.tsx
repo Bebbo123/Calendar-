@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Edit, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { TaskService } from '../services/taskService';
-import { Task, SubTask, Priority, Category } from '../types';
+import { Task, SubTask, Priority, Category, RecurrenceFrequency } from '../types';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -16,7 +16,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
   const [category, setCategory] = useState<Category>(Category.Work);
   const [priority, setPriority] = useState<Priority>(Priority.Medium);
   const [notes, setNotes] = useState('');
+  const [subtasks, setSubtasks] = useState<SubTask[]>([]);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceFrom, setRecurrenceFrom] = useState('');
+  const [recurrenceTo, setRecurrenceTo] = useState('');
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>('daily');
 
   useEffect(() => {
     if (task) {
@@ -25,20 +30,54 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
       setCategory(task.category);
       setPriority(task.priority);
       setNotes(task.notes || '');
+      setSubtasks(task.subtasks || []);
+      setIsRecurring(!!task.recurrence);
+      setRecurrenceFrom(task.recurrence ? task.recurrence.from.toISOString().split('T')[0] : '');
+      setRecurrenceTo(task.recurrence ? task.recurrence.to.toISOString().split('T')[0] : '');
+      setRecurrenceFrequency(task.recurrence ? task.recurrence.frequency : 'daily');
     }
   }, [task]);
 
   if (!isOpen || !task) return null;
 
+  const isValidRecurrenceRange = (): boolean => {
+    if (!isRecurring) return true;
+    if (!recurrenceFrom || !recurrenceTo) return false;
+    const from = new Date(recurrenceFrom);
+    const to = new Date(recurrenceTo);
+    return from <= to;
+  };
+
   const handleSave = () => {
+    if (!isValidRecurrenceRange()) {
+      alert('Intervallo ricorrenza non valido: da deve essere minore o uguale a a.');
+      return;
+    }
+
+    const recurrence = isRecurring && recurrenceFrom && recurrenceTo
+      ? {
+          from: new Date(recurrenceFrom),
+          to: new Date(recurrenceTo),
+          frequency: recurrenceFrequency,
+        }
+      : undefined;
+
     TaskService.updateTask(task.id, {
       title,
-      date: new Date(date),
+      date: recurrence ? new Date(recurrenceFrom) : new Date(date),
       category,
       priority,
       notes: notes || undefined,
+      subtasks,
+      recurrence,
     });
     onTaskUpdated();
+    onClose();
+  };
+
+  const captureUpdatedTaskSubtasks = () => {
+    const updatedTask = TaskService.getTasks().find(t => t.id === task.id);
+    setSubtasks(updatedTask?.subtasks || []);
   };
 
   const handleAddSubTask = () => {
@@ -48,24 +87,27 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
         completed: false,
       });
       setNewSubTaskTitle('');
+      captureUpdatedTaskSubtasks();
       onTaskUpdated();
     }
   };
 
   const handleToggleSubTask = (subtaskId: string) => {
-    const subtask = task.subtasks?.find(st => st.id === subtaskId);
+    const subtask = subtasks.find(st => st.id === subtaskId);
     if (subtask) {
       TaskService.updateSubTask(task.id, subtaskId, { completed: !subtask.completed });
+      captureUpdatedTaskSubtasks();
       onTaskUpdated();
     }
   };
 
   const handleDeleteSubTask = (subtaskId: string) => {
     TaskService.deleteSubTask(task.id, subtaskId);
+    captureUpdatedTaskSubtasks();
     onTaskUpdated();
   };
 
-  const completionPercentage = TaskService.getTaskCompletionPercentage(task);
+  const completionPercentage = TaskService.getTaskCompletionPercentage({ ...task, subtasks });
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -148,6 +190,58 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
             />
           </div>
 
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                id="detail-recurring"
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="detail-recurring" className="text-sm text-gray-700">
+                Task periodica
+              </label>
+            </div>
+
+            {isRecurring && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Da</label>
+                  <input
+                    type="date"
+                    value={recurrenceFrom}
+                    onChange={(e) => setRecurrenceFrom(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">A</label>
+                  <input
+                    type="date"
+                    value={recurrenceTo}
+                    onChange={(e) => setRecurrenceTo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequenza</label>
+                  <select
+                    value={recurrenceFrequency}
+                    onChange={(e) => setRecurrenceFrequency(e.target.value as RecurrenceFrequency)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="daily">Quotidiana</option>
+                    <option value="weekly">Settimanale</option>
+                    <option value="monthly">Mensile</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Completion Progress */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="flex justify-between items-center mb-2">
@@ -186,28 +280,29 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
 
             {/* Subtasks list */}
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {task.subtasks?.map(subtask => (
-                <div key={subtask.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      checked={subtask.completed}
-                      onChange={() => handleToggleSubTask(subtask.id)}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                    <span className={`text-sm ${subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                      {subtask.title}
-                    </span>
+              {subtasks.length > 0 ? (
+                subtasks.map(subtask => (
+                  <div key={subtask.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={subtask.completed}
+                        onChange={() => handleToggleSubTask(subtask.id)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className={`text-sm ${subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                        {subtask.title}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteSubTask(subtask.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleDeleteSubTask(subtask.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-              {(!task.subtasks || task.subtasks.length === 0) && (
+                ))
+              ) : (
                 <p className="text-gray-500 text-sm">Nessuna sotto-task</p>
               )}
             </div>

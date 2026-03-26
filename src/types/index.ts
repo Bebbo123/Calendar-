@@ -17,6 +17,14 @@ export interface SubTask {
   completed: boolean;
 }
 
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly';
+
+export interface Recurrence {
+  from: Date;
+  to: Date;
+  frequency: RecurrenceFrequency;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -26,4 +34,5 @@ export interface Task {
   notes?: string;
   completed: boolean;
   subtasks?: SubTask[];
+  recurrence?: Recurrence;
 }

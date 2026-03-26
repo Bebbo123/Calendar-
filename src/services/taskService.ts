@@ -1,4 +1,5 @@
 import { Task, SubTask } from '../types';
+import { generateRecurrenceDates } from '../utils/recurrenceUtils';
 
 const STORAGE_KEY = 'smart-calendar-tasks';
 
@@ -11,6 +12,13 @@ export class TaskService {
     return parsed.map((task: any) => ({
       ...task,
       date: new Date(task.date),
+      recurrence: task.recurrence
+        ? {
+            from: new Date(task.recurrence.from),
+            to: new Date(task.recurrence.to),
+            frequency: task.recurrence.frequency,
+          }
+        : undefined,
     }));
   }
 
@@ -27,6 +35,31 @@ export class TaskService {
     tasks.push(newTask);
     this.saveTasks(tasks);
     return newTask;
+  }
+
+  static addRecurringTasks(task: Omit<Task, 'id'>): Task[] {
+    if (!task.recurrence) {
+      return [this.addTask(task)];
+    }
+
+    const dates = generateRecurrenceDates(task.recurrence);
+
+    const tasks = this.getTasks();
+    const created: Task[] = [];
+
+    dates.forEach((date: Date) => {
+      const recurringTask: Task = {
+        ...task,
+        id: crypto.randomUUID(),
+        date,
+        recurrence: undefined,
+      };
+      tasks.push(recurringTask);
+      created.push(recurringTask);
+    });
+
+    this.saveTasks(tasks);
+    return created;
   }
 
   static updateTask(id: string, updates: Partial<Task>): void {
@@ -67,6 +100,12 @@ export class TaskService {
         }
       }
     }
+  }
+
+  static deleteTask(taskId: string): void {
+    const tasks = this.getTasks();
+    const filtered = tasks.filter(task => task.id !== taskId);
+    this.saveTasks(filtered);
   }
 
   static deleteSubTask(taskId: string, subtaskId: string): void {
