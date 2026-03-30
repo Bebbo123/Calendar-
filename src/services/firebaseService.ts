@@ -25,8 +25,12 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let db: ReturnType<typeof getFirestore> | null = null;
 
+export const isFirebaseEnabled = () => {
+  return !firebaseConfig.apiKey.includes('YOUR_API_KEY');
+};
+
 export const useFirebase = () => {
-  if (firebaseConfig.apiKey.includes('YOUR_API_KEY')) {
+  if (!isFirebaseEnabled()) {
     // non configurato -> fallback solo localStorage
     return false;
   }

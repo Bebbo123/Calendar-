@@ -11,6 +11,9 @@ const STORAGE_KEY = 'smart-calendar-tasks';
 const useRemote = useFirebase();
 
 export class TaskService {
+  static isRemoteEnabled(): boolean {
+    return useRemote;
+  }
   static getTasks(): Task[] {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];

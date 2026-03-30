@@ -4,7 +4,7 @@ import { TaskService } from '../../services/taskService';
 import { Task, Category, Priority } from '../../types';
 import { getPriorityColor } from '../../utils/priorityUtils';
 import TaskDetailModal from '../../components/TaskDetailModal';
-import { useFirebase, onTasksChange } from '../../services/firebaseService';
+import { onTasksChange } from '../../services/firebaseService';
 import {
   startOfMonth,
   endOfMonth,
@@ -33,16 +33,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const [filterCategory, setFilterCategory] = useState<'all' | Category>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | Priority>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'pending'>('all');
+  const [isRemoteEnabled] = useState<boolean>(TaskService.isRemoteEnabled());
+  const [syncStatus, setSyncStatus] = useState<string>('idle');
 
   useEffect(() => {
     const loadTasks = async () => {
-      const synced = await TaskService.syncTasks();
-      setTasks(synced);
+      try {
+        setSyncStatus('syncing');
+        const synced = await TaskService.syncTasks();
+        setTasks(synced);
+        setSyncStatus('synced');
+      } catch (error) {
+        console.error('Sync error', error);
+        setSyncStatus('error');
+      }
     };
 
     loadTasks();
 
-    if (useFirebase()) {
+    if (isRemoteEnabled) {
       const unsubscribe = onTasksChange((newTasks) => {
         setTasks(newTasks);
       });
@@ -53,6 +62,23 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
 
     return undefined;
   }, [refreshKey]);
+
+  useEffect(() => {
+    if (!isRemoteEnabled) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const synced = await TaskService.syncTasks();
+        setTasks(synced);
+        setSyncStatus('synced');
+      } catch (error) {
+        console.error('Polling sync error', error);
+        setSyncStatus('error');
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [isRemoteEnabled]);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -133,6 +159,27 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <span className="text-sm text-gray-600">
+          Stato sync: {isRemoteEnabled ? 'Firebase realtime' : 'Offline (localStorage)'} - {syncStatus}
+        </span>
+        <button
+          onClick={async () => {
+            try {
+              setSyncStatus('syncing');
+              const synced = await TaskService.syncTasks();
+              setTasks(synced);
+              setSyncStatus('synced');
+            } catch (error) {
+              setSyncStatus('error');
+            }
+          }}
+          className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Sincronizza ora
+        </button>
+      </div>
+
       <div className="flex justify-between items-center mb-6">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
