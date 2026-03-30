@@ -43,9 +43,17 @@ export class TaskService {
     }
 
     const dates = generateRecurrenceDates(task.recurrence);
-
     const tasks = this.getTasks();
-    const created: Task[] = [];
+
+    // Create a recurring template item (non-displayed, controls instances)
+    const templateTask: Task = {
+      ...task,
+      id: crypto.randomUUID(),
+      isRecurringTemplate: true,
+    };
+
+    tasks.push(templateTask);
+    const created: Task[] = [templateTask];
 
     dates.forEach((date: Date) => {
       const recurringTask: Task = {
@@ -53,6 +61,8 @@ export class TaskService {
         id: crypto.randomUUID(),
         date,
         recurrence: undefined,
+        recurrenceMasterId: templateTask.id,
+        isRecurringTemplate: false,
       };
       tasks.push(recurringTask);
       created.push(recurringTask);

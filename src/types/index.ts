@@ -35,4 +35,6 @@ export interface Task {
   completed: boolean;
   subtasks?: SubTask[];
   recurrence?: Recurrence;
+  recurrenceMasterId?: string; // reference to recurrence template
+  isRecurringTemplate?: boolean; // template marker for recurrence management
 }

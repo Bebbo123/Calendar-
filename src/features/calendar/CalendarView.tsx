@@ -31,6 +31,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<'all' | Category>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | Priority>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'pending'>('all');
 
   useEffect(() => {
     setTasks(TaskService.getTasks());
@@ -61,9 +62,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   };
 
   const getTasksForDay = (day: Date) => {
-    return tasks.filter(task =>
-      isSameDay(task.date, day) || isRecurringTaskOnDay(task, day)
-    );
+    return tasks.filter(task => {
+      const isTemplate = task.recurrence && task.isRecurringTemplate;
+      const isLegacyRecurring = task.recurrence && !task.recurrenceMasterId && !task.isRecurringTemplate;
+
+      if (isTemplate) {
+        // template tasks are only the recurrence definition, instances are shown instead
+        return false;
+      }
+      if (isLegacyRecurring) {
+        return isRecurringTaskOnDay(task, day);
+      }
+
+      return isSameDay(task.date, day);
+    });
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -79,6 +91,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
     setIsDetailModalOpen(true);
   };
 
+  const toggleTaskCompletion = (task: Task) => {
+    TaskService.updateTask(task.id, { completed: !task.completed });
+    setTasks(TaskService.getTasks());
+    onTaskUpdate();
+  };
+
   const handleTaskUpdated = () => {
     setTasks(TaskService.getTasks());
     onTaskUpdate();
@@ -87,7 +105,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const selectedDayTasks = selectedDay
     ? getTasksForDay(selectedDay).filter(task =>
         (filterCategory === 'all' || task.category === filterCategory) &&
-        (filterPriority === 'all' || task.priority === filterPriority)
+        (filterPriority === 'all' || task.priority === filterPriority) &&
+        (filterStatus === 'all' ||
+          (filterStatus === 'completed' && task.completed) ||
+          (filterStatus === 'pending' && !task.completed))
       )
     : [];
 
@@ -195,6 +216,47 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
                 <option value={Priority.Urgent}>Urgente</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Stato</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as 'all' | 'completed' | 'pending')}
+                className="px-2 py-1 border border-gray-300 rounded-lg"
+              >
+                <option value="all">Tutti</option>
+                <option value="completed">Completati</option>
+                <option value="pending">Non completati</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="text-sm text-gray-600">
+              {selectedDayTasks.length} task trovati
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const pendingTasks = selectedDayTasks.filter(t => !t.completed);
+                  pendingTasks.forEach((task) => TaskService.updateTask(task.id, { completed: true }));
+                  setTasks(TaskService.getTasks());
+                  onTaskUpdate();
+                }}
+                className="px-3 py-1 text-white bg-green-600 rounded-lg hover:bg-green-700"
+              >
+                Completa tutti
+              </button>
+              <button
+                onClick={() => {
+                  const toDelete = selectedDayTasks.filter(t => t.completed);
+                  toDelete.forEach((task) => TaskService.deleteTask(task.id));
+                  setTasks(TaskService.getTasks());
+                  onTaskUpdate();
+                }}
+                className="px-3 py-1 text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Elimina completati
+              </button>
+            </div>
           </div>
           {selectedDayTasks.length === 0 ? (
             <p className="text-gray-500">Nessun task per questo giorno</p>
@@ -204,11 +266,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
                 const completion = TaskService.getTaskCompletionPercentage(task);
                 return (
                   <div key={task.id} className="p-3 bg-white rounded-lg shadow-sm border">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{task.title}</p>
-                        <p className="text-sm text-gray-600">{task.category}</p>
-                      </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => toggleTaskCompletion(task)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          aria-label={`Completa task ${task.title}`}
+                        />
+                        <span className={task.completed ? 'line-through text-gray-400' : 'text-gray-800'}>
+                          {task.title}
+                        </span>
+                      </label>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEditTask(task)}
