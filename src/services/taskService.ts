@@ -1,7 +1,14 @@
 import { Task, SubTask } from '../types';
 import { generateRecurrenceDates } from '../utils/recurrenceUtils';
+import {
+  useFirebase,
+  syncTasksFromFirebase,
+  addOrUpdateTaskFirebase,
+  deleteTaskFirebase,
+} from './firebaseService';
 
 const STORAGE_KEY = 'smart-calendar-tasks';
+const useRemote = useFirebase();
 
 export class TaskService {
   static getTasks(): Task[] {
@@ -22,6 +29,15 @@ export class TaskService {
     }));
   }
 
+  static async syncTasks(): Promise<Task[]> {
+    if (!useRemote) return this.getTasks();
+    const remote = await syncTasksFromFirebase();
+    if (remote.length > 0) {
+      this.saveTasks(remote);
+    }
+    return remote;
+  }
+
   static saveTasks(tasks: Task[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }
@@ -34,6 +50,9 @@ export class TaskService {
     };
     tasks.push(newTask);
     this.saveTasks(tasks);
+    if (useRemote) {
+      addOrUpdateTaskFirebase(newTask).catch(console.error);
+    }
     return newTask;
   }
 
@@ -78,6 +97,9 @@ export class TaskService {
     if (index !== -1) {
       tasks[index] = { ...tasks[index], ...updates };
       this.saveTasks(tasks);
+      if (useRemote) {
+        addOrUpdateTaskFirebase(tasks[index]).catch(console.error);
+      }
     }
   }
 
@@ -116,6 +138,9 @@ export class TaskService {
     const tasks = this.getTasks();
     const filtered = tasks.filter(task => task.id !== taskId);
     this.saveTasks(filtered);
+    if (useRemote) {
+      deleteTaskFirebase(taskId).catch(console.error);
+    }
   }
 
   static deleteSubTask(taskId: string, subtaskId: string): void {

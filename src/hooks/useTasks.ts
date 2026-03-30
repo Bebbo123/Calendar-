@@ -5,27 +5,28 @@ import { TaskService } from '../services/taskService';
 export const useTasks = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  const refreshTasks = () => {
-    setTasks(TaskService.getTasks());
+  const refreshTasks = async () => {
+    const loaded = await TaskService.syncTasks();
+    setTasks(loaded);
   };
 
   useEffect(() => {
     refreshTasks();
   }, []);
 
-  const addTask = (task: Omit<Task, 'id'>) => {
+  const addTask = async (task: Omit<Task, 'id'>) => {
     TaskService.addTask(task);
-    refreshTasks();
+    await refreshTasks();
   };
 
-  const updateTask = (id: string, updates: Partial<Task>) => {
+  const updateTask = async (id: string, updates: Partial<Task>) => {
     TaskService.updateTask(id, updates);
-    refreshTasks();
+    await refreshTasks();
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
     TaskService.deleteTask(id);
-    refreshTasks();
+    await refreshTasks();
   };
 
   return {

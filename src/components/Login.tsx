@@ -49,7 +49,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             Accedi
           </button>
         </form>
-        <p className="text-xs text-gray-500 mt-4">Prova: admin / password123</p>
+        <p className="text-xs text-gray-500 mt-4">Inserisci credenziali valide per accedere.</p>
       </div>
     </div>
   );

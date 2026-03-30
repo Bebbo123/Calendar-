@@ -4,6 +4,7 @@ import { TaskService } from '../../services/taskService';
 import { Task, Category, Priority } from '../../types';
 import { getPriorityColor } from '../../utils/priorityUtils';
 import TaskDetailModal from '../../components/TaskDetailModal';
+import { useFirebase, onTasksChange } from '../../services/firebaseService';
 import {
   startOfMonth,
   endOfMonth,
@@ -34,7 +35,23 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'pending'>('all');
 
   useEffect(() => {
-    setTasks(TaskService.getTasks());
+    const loadTasks = async () => {
+      const synced = await TaskService.syncTasks();
+      setTasks(synced);
+    };
+
+    loadTasks();
+
+    if (useFirebase()) {
+      const unsubscribe = onTasksChange((newTasks) => {
+        setTasks(newTasks);
+      });
+      return () => {
+        unsubscribe && unsubscribe();
+      };
+    }
+
+    return undefined;
   }, [refreshKey]);
 
   const monthStart = startOfMonth(currentMonth);
