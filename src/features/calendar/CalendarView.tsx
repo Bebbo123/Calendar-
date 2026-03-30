@@ -64,8 +64,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   }, [refreshKey]);
 
   useEffect(() => {
-    if (!isRemoteEnabled) return;
-
     const interval = setInterval(async () => {
       try {
         const synced = await TaskService.syncTasks();
@@ -75,10 +73,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
         console.error('Polling sync error', error);
         setSyncStatus('error');
       }
-    }, 8000);
+    }, 15000); // ogni 15 secondi
 
     return () => clearInterval(interval);
-  }, [isRemoteEnabled]);
+  }, []);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
