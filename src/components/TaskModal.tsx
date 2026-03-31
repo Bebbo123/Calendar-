@@ -339,3 +339,5 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded, use
   );
 };
 
+export default TaskModal;
+

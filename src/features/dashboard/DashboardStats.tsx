@@ -132,3 +132,5 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ userId }) => {
   );
 };
 
+export default DashboardStats;
+
