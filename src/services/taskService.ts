@@ -60,18 +60,19 @@ export class TaskService {
       id: crypto.randomUUID(),
     };
 
+    // Salva localmente prima
+    const tasks = this.getTasks();
+    tasks.push(newTask);
+    this.saveTasks(tasks);
+
+    // Poi sincronizza con Supabase
     if (useRemote && userId) {
       try {
         await addOrUpdateTaskSupabase(userId, newTask);
       } catch (error) {
-        console.error('Errore salvataggio task:', error);
+        console.error('Errore salvataggio task su Supabase:', error);
       }
     }
-
-    // Salva anche in localStorage come fallback
-    const tasks = this.getTasks();
-    tasks.push(newTask);
-    this.saveTasks(tasks);
 
     return newTask;
   }
@@ -139,7 +140,7 @@ export class TaskService {
         try {
           await addOrUpdateTaskSupabase(userId, tasks[index]);
         } catch (error) {
-          console.error('Errore aggiornamento task:', error);
+          console.error('Errore aggiornamento task su Supabase:', error);
         }
       }
     }
