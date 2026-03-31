@@ -22,9 +22,10 @@ import {
 interface CalendarViewProps {
   userId: string;
   onTaskUpdate: () => void;
+  onAddTask: () => void;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ userId, onTaskUpdate }) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ userId, onTaskUpdate, onAddTask }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -159,7 +160,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({ userId, onTaskUpdate }) => 
   console.log('selectedDay:', selectedDay, 'selectedDayTasks:', selectedDayTasks);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
+    <div className="space-y-4">
+      {/* Pulsante Aggiungi Task */}
+      <div className="flex justify-end">
+        <button
+          onClick={onAddTask}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+        >
+          <span className="text-xl">+</span>
+          Aggiungi Task
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <span className="text-sm text-gray-600">
           Stato sync: {isRemoteEnabled ? 'Firebase realtime' : 'Offline (localStorage)'} - {syncStatus}
@@ -388,8 +401,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ userId, onTaskUpdate }) => 
         onTaskUpdated={handleTaskUpdated}
         userId={userId}
       />
-    </div>
-  );
+    </div>    </div>  );
 };
 
 export default CalendarView;

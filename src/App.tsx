@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Calendar, BarChart3 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import TaskModal from './components/TaskModal';
 import CalendarView from './features/calendar/CalendarView';
@@ -18,6 +19,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar'>('dashboard');
 
   // Inizializza Supabase e ascolta lo stato di autenticazione
   useEffect(() => {
@@ -106,24 +108,56 @@ const App: React.FC = () => {
           onClose={() => setIsSidebarOpen(false)}
         />
         <div className="flex-1 lg:ml-64">
-          <header className="flex items-center justify-between p-4 bg-white border-b lg:hidden">
+          <header className="flex items-center justify-between p-4 bg-white border-b">
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="px-3 py-2 bg-blue-600 text-white rounded-md"
+              className="lg:hidden px-3 py-2 bg-blue-600 text-white rounded-md mr-3"
             >
               Menu
             </button>
+
+            {/* Tabs */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === 'dashboard'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <BarChart3 size={18} />
+                Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab('calendar')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === 'calendar'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Calendar size={18} />
+                Calendario
+              </button>
+            </div>
+
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="px-3 py-2 bg-red-500 text-white rounded-md"
+              className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
             >
               Logout
             </button>
           </header>
 
           <main className="p-4 sm:p-6">
-            <DashboardStats userId={user.id} />
-            <CalendarView userId={user.id} onTaskUpdate={() => {}} />
+            {activeTab === 'dashboard' ? (
+              <DashboardStats userId={user.id} onAddTask={() => setIsModalOpen(true)} />
+            ) : (
+              <CalendarView userId={user.id} onTaskUpdate={() => {}} onAddTask={() => setIsModalOpen(true)} />
+            )}
           </main>
         </div>
       </div>

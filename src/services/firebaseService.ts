@@ -10,8 +10,6 @@ import {
   QueryDocumentSnapshot,
   DocumentData,
   Timestamp,
-  query,
-  where,
 } from 'firebase/firestore';
 import {
   getAuth,

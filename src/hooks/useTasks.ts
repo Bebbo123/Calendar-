@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Task } from '../types';
 import { TaskService } from '../services/taskService';
-import { onTasksChange, syncTasksFromSupabase } from '../services/supabaseService';
+import { onTasksChange } from '../services/supabaseService';
 
 export const useTasks = (userId: string | null) => {
   const [tasks, setTasks] = useState<Task[]>([]);
