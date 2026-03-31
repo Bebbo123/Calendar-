@@ -4,7 +4,7 @@ import { TaskService } from '../../services/taskService';
 import { Task, Category, Priority } from '../../types';
 import { getPriorityColor } from '../../utils/priorityUtils';
 import TaskDetailModal from '../../components/TaskDetailModal';
-import { onTasksChange } from '../../services/firebaseService';
+import { onTasksChange } from '../../services/supabaseService';
 import {
   startOfMonth,
   endOfMonth,
@@ -20,11 +20,11 @@ import {
 } from 'date-fns';
 
 interface CalendarViewProps {
-  refreshKey: number;
+  userId: string;
   onTaskUpdate: () => void;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate }) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ userId, onTaskUpdate }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -37,10 +37,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   const [syncStatus, setSyncStatus] = useState<string>('idle');
 
   useEffect(() => {
+    if (!userId) return;
+
     const loadTasks = async () => {
       try {
         setSyncStatus('syncing');
-        const synced = await TaskService.syncTasks();
+        const synced = await TaskService.syncTasks(userId);
         setTasks(synced);
         setSyncStatus('synced');
       } catch (error) {
@@ -52,7 +54,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
     loadTasks();
 
     if (isRemoteEnabled) {
-      const unsubscribe = onTasksChange((newTasks) => {
+      const unsubscribe = onTasksChange(userId, (newTasks) => {
         setTasks(newTasks);
       });
       return () => {
@@ -61,12 +63,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
     }
 
     return undefined;
-  }, [refreshKey]);
+  }, [userId]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (!userId) return;
       try {
-        const synced = await TaskService.syncTasks();
+        const synced = await TaskService.syncTasks(userId);
         setTasks(synced);
         setSyncStatus('synced');
       } catch (error) {
@@ -76,7 +79,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
     }, 15000); // ogni 15 secondi
 
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -121,7 +124,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
 
   const handleDeleteTask = (taskId: string) => {
     if (confirm('Sei sicuro di voler eliminare questo task?')) {
-      TaskService.deleteTask(taskId);
+      TaskService.deleteTask(userId, taskId);
       setTasks(TaskService.getTasks());
       onTaskUpdate();
     }
@@ -133,7 +136,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
   };
 
   const toggleTaskCompletion = (task: Task) => {
-    TaskService.updateTask(task.id, { completed: !task.completed });
+    TaskService.updateTask(userId, task.id, { completed: !task.completed });
     setTasks(TaskService.getTasks());
     onTaskUpdate();
   };
@@ -163,9 +166,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
         </span>
         <button
           onClick={async () => {
+            if (!userId) return;
             try {
               setSyncStatus('syncing');
-              const synced = await TaskService.syncTasks();
+              const synced = await TaskService.syncTasks(userId);
               setTasks(synced);
               setSyncStatus('synced');
             } catch (error) {
@@ -299,7 +303,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
               <button
                 onClick={() => {
                   const pendingTasks = selectedDayTasks.filter(t => !t.completed);
-                  pendingTasks.forEach((task) => TaskService.updateTask(task.id, { completed: true }));
+                  pendingTasks.forEach((task) => TaskService.updateTask(userId, task.id, { completed: true }));
                   setTasks(TaskService.getTasks());
                   onTaskUpdate();
                 }}
@@ -310,7 +314,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
               <button
                 onClick={() => {
                   const toDelete = selectedDayTasks.filter(t => t.completed);
-                  toDelete.forEach((task) => TaskService.deleteTask(task.id));
+                  toDelete.forEach((task) => TaskService.deleteTask(userId, task.id));
                   setTasks(TaskService.getTasks());
                   onTaskUpdate();
                 }}
@@ -382,6 +386,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ refreshKey, onTaskUpdate })
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         onTaskUpdated={handleTaskUpdated}
+        userId={userId}
       />
     </div>
   );

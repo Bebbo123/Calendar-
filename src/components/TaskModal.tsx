@@ -7,9 +7,10 @@ interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTaskAdded: () => void;
+  userId: string;
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded, userId }) => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState<Category>(Category.Work);
@@ -21,6 +22,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
   const [recurrenceFrom, setRecurrenceFrom] = useState('');
   const [recurrenceTo, setRecurrenceTo] = useState('');
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>('daily');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addSubTask = () => {
     if (!newSubTaskTitle.trim()) return;
@@ -50,7 +52,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
     return from <= to;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
 
@@ -59,43 +61,48 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
       return;
     }
 
-    const recurrence = isRecurring && recurrenceFrom && recurrenceTo
-      ? {
-          from: new Date(recurrenceFrom),
-          to: new Date(recurrenceTo),
-          frequency: recurrenceFrequency,
-        }
-      : undefined;
+    setIsSubmitting(true);
+    try {
+      const recurrence = isRecurring && recurrenceFrom && recurrenceTo
+        ? {
+            from: new Date(recurrenceFrom),
+            to: new Date(recurrenceTo),
+            frequency: recurrenceFrequency,
+          }
+        : undefined;
 
-    const effectiveDate = recurrence ? new Date(recurrenceFrom) : new Date(date);
+      const effectiveDate = recurrence ? new Date(recurrenceFrom) : new Date(date);
 
-    const newTask: Omit<Task, 'id'> = {
-      title,
-      date: effectiveDate,
-      category,
-      priority,
-      notes: notes || undefined,
-      completed: false,
-      subtasks,
-      recurrence,
-    };
+      const newTask: Omit<Task, 'id'> = {
+        title,
+        date: effectiveDate,
+        category,
+        priority,
+        notes: notes || undefined,
+        completed: false,
+        subtasks,
+        recurrence,
+      };
 
-    if (recurrence) {
-      TaskService.addRecurringTasks(newTask);
-    } else {
-      TaskService.addTask(newTask);
+      if (recurrence) {
+        await TaskService.addRecurringTasks(userId, newTask);
+      } else {
+        await TaskService.addTask(userId, newTask);
+      }
+
+      onTaskAdded();
+      onClose();
+      // Reset form
+      setTitle('');
+      setDate('');
+      setCategory(Category.Work);
+      setPriority(Priority.Medium);
+      setNotes('');
+      setSubtasks([]);
+      setNewSubTaskTitle('');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onTaskAdded();
-    onClose();
-    // Reset form
-    setTitle('');
-    setDate('');
-    setCategory(Category.Work);
-    setPriority(Priority.Medium);
-    setNotes('');
-    setSubtasks([]);
-    setNewSubTaskTitle('');
   };
 
   if (!isOpen) return null;
@@ -120,6 +127,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isSubmitting}
               required
             />
           </div>
@@ -138,6 +146,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                 }
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isSubmitting}
               required
             />
           </div>
@@ -150,6 +159,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isSubmitting}
             >
               <option value={Category.Work}>Lavoro</option>
               <option value={Category.Personal}>Personale</option>
@@ -165,6 +175,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
               value={priority}
               onChange={(e) => setPriority(e.target.value as Priority)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isSubmitting}
             >
               <option value={Priority.Low}>Bassa</option>
               <option value={Priority.Medium}>Media</option>
@@ -182,6 +193,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
+              disabled={isSubmitting}
             />
           </div>
 
@@ -193,6 +205,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                 onChange={(e) => setIsRecurring(e.target.checked)}
                 id="recurring"
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                disabled={isSubmitting}
               />
               <label htmlFor="recurring" className="text-sm text-gray-700">
                 Task periodica
@@ -213,6 +226,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isSubmitting}
                     required
                   />
                 </div>
@@ -223,6 +237,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                     value={recurrenceTo}
                     onChange={(e) => setRecurrenceTo(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isSubmitting}
                     required
                   />
                 </div>
@@ -232,6 +247,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                     value={recurrenceFrequency}
                     onChange={(e) => setRecurrenceFrequency(e.target.value as RecurrenceFrequency)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={isSubmitting}
                   >
                     <option value="daily">Quotidiana</option>
                     <option value="weekly">Settimanale</option>
@@ -255,11 +271,13 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                 placeholder="Nuova sotto-task..."
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSubTask())}
+                disabled={isSubmitting}
               />
               <button
                 type="button"
                 onClick={addSubTask}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                disabled={isSubmitting}
               >
                 <Plus size={16} />
               </button>
@@ -277,6 +295,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                         checked={subtask.completed}
                         onChange={() => toggleSubTask(subtask.id)}
                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        disabled={isSubmitting}
                       />
                       <span className={subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}>
                         {subtask.title}
@@ -285,8 +304,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
                     <button
                       type="button"
                       onClick={() => deleteSubTask(subtask.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-500 hover:text-red-700 disabled:text-gray-400"
                       aria-label="Elimina sottotask"
+                      disabled={isSubmitting}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -300,15 +320,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:text-gray-400"
+              disabled={isSubmitting}
             >
               Annulla
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              disabled={isSubmitting}
             >
-              Salva
+              {isSubmitting ? 'Salvataggio...' : 'Salva'}
             </button>
           </div>
         </form>
@@ -317,4 +339,3 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onTaskAdded }) =
   );
 };
 
-export default TaskModal;

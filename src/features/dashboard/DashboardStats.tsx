@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { TaskService } from '../../services/taskService';
+import { useTasks } from '../../hooks/useTasks';
 import { isTaskUrgent } from '../../utils/priorityUtils';
 
 interface DashboardStatsProps {
-  refreshKey: number;
+  userId: string;
 }
 
-const DashboardStats: React.FC<DashboardStatsProps> = ({ refreshKey }) => {
+const DashboardStats: React.FC<DashboardStatsProps> = ({ userId }) => {
+  const { tasks, loading } = useTasks(userId);
   const [stats, setStats] = useState({
     total: 0,
     urgent: 0,
@@ -22,7 +23,6 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ refreshKey }) => {
   });
 
   useEffect(() => {
-    const tasks = TaskService.getTasks();
     const now = new Date();
     const weekFromNow = new Date();
     weekFromNow.setDate(now.getDate() + 7);
@@ -53,7 +53,17 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ refreshKey }) => {
       recurring,
       categoryCounts,
     });
-  }, [refreshKey]);
+  }, [tasks]);
+
+  if (loading) {
+    return (
+      <div className="mb-8">
+        <div className="bg-white rounded-xl shadow-sm p-6 text-center text-gray-500">
+          Caricamento statistiche...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -122,4 +132,3 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ refreshKey }) => {
   );
 };
 
-export default DashboardStats;

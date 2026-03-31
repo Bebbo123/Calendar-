@@ -11,6 +11,7 @@
     "deploy:gh-pages": "npm run build && npx gh-pages -d dist"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.101.0",
     "date-fns": "^3.6.0",
     "firebase": "^12.11.0",
     "lucide-react": "^0.344.0",

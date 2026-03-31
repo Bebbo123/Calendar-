@@ -1,19 +1,20 @@
 import { Task, SubTask } from '../types';
 import { generateRecurrenceDates } from '../utils/recurrenceUtils';
 import {
-  useFirebase,
-  syncTasksFromFirebase,
-  addOrUpdateTaskFirebase,
-  deleteTaskFirebase,
-} from './firebaseService';
+  isSupabaseEnabled,
+  syncTasksFromSupabase,
+  addOrUpdateTaskSupabase,
+  deleteTaskSupabase,
+} from './supabaseService';
 
 const STORAGE_KEY = 'smart-calendar-tasks';
-const useRemote = useFirebase();
+const useRemote = isSupabaseEnabled();
 
 export class TaskService {
   static isRemoteEnabled(): boolean {
     return useRemote;
   }
+
   static getTasks(): Task[] {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
@@ -32,42 +33,58 @@ export class TaskService {
     }));
   }
 
-  static async syncTasks(): Promise<Task[]> {
-    if (!useRemote) return this.getTasks();
-    const remote = await syncTasksFromFirebase();
-    if (remote.length > 0) {
-      this.saveTasks(remote);
+  static async syncTasks(userId: string): Promise<Task[]> {
+    if (!useRemote || !userId) {
+      return this.getTasks();
     }
-    return remote;
+    
+    try {
+      const remote = await syncTasksFromSupabase(userId);
+      if (remote.length > 0) {
+        this.saveTasks(remote);
+      }
+      return remote;
+    } catch (error) {
+      console.error('Errore sync:', error);
+      return this.getTasks();
+    }
   }
 
   static saveTasks(tasks: Task[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }
 
-  static addTask(task: Omit<Task, 'id'>): Task {
-    const tasks = this.getTasks();
+  static async addTask(userId: string, task: Omit<Task, 'id'>): Promise<Task> {
     const newTask: Task = {
       ...task,
       id: crypto.randomUUID(),
     };
+
+    if (useRemote && userId) {
+      try {
+        await addOrUpdateTaskSupabase(userId, newTask);
+      } catch (error) {
+        console.error('Errore salvataggio task:', error);
+      }
+    }
+
+    // Salva anche in localStorage come fallback
+    const tasks = this.getTasks();
     tasks.push(newTask);
     this.saveTasks(tasks);
-    if (useRemote) {
-      addOrUpdateTaskFirebase(newTask).catch(console.error);
-    }
+
     return newTask;
   }
 
-  static addRecurringTasks(task: Omit<Task, 'id'>): Task[] {
+  static async addRecurringTasks(userId: string, task: Omit<Task, 'id'>): Promise<Task[]> {
     if (!task.recurrence) {
-      return [this.addTask(task)];
+      return [await this.addTask(userId, task)];
     }
 
     const dates = generateRecurrenceDates(task.recurrence);
     const tasks = this.getTasks();
 
-    // Create a recurring template item (non-displayed, controls instances)
+    // Create a recurring template item
     const templateTask: Task = {
       ...task,
       id: crypto.randomUUID(),
@@ -77,7 +94,15 @@ export class TaskService {
     tasks.push(templateTask);
     const created: Task[] = [templateTask];
 
-    dates.forEach((date: Date) => {
+    if (useRemote && userId) {
+      try {
+        await addOrUpdateTaskSupabase(userId, templateTask);
+      } catch (error) {
+        console.error('Errore salvataggio template:', error);
+      }
+    }
+
+    dates.forEach(async (date: Date) => {
       const recurringTask: Task = {
         ...task,
         id: crypto.randomUUID(),
@@ -88,20 +113,34 @@ export class TaskService {
       };
       tasks.push(recurringTask);
       created.push(recurringTask);
+
+      if (useRemote && userId) {
+        try {
+          await addOrUpdateTaskSupabase(userId, recurringTask);
+        } catch (error) {
+          console.error('Errore salvataggio ricorrente:', error);
+        }
+      }
     });
 
     this.saveTasks(tasks);
     return created;
   }
 
-  static updateTask(id: string, updates: Partial<Task>): void {
+  static async updateTask(userId: string, id: string, updates: Partial<Task>): Promise<void> {
     const tasks = this.getTasks();
     const index = tasks.findIndex(t => t.id === id);
+    
     if (index !== -1) {
       tasks[index] = { ...tasks[index], ...updates };
       this.saveTasks(tasks);
-      if (useRemote) {
-        addOrUpdateTaskFirebase(tasks[index]).catch(console.error);
+      
+      if (useRemote && userId) {
+        try {
+          await addOrUpdateTaskSupabase(userId, tasks[index]);
+        } catch (error) {
+          console.error('Errore aggiornamento task:', error);
+        }
       }
     }
   }
@@ -137,12 +176,17 @@ export class TaskService {
     }
   }
 
-  static deleteTask(taskId: string): void {
+  static async deleteTask(userId: string, taskId: string): Promise<void> {
     const tasks = this.getTasks();
     const filtered = tasks.filter(task => task.id !== taskId);
     this.saveTasks(filtered);
-    if (useRemote) {
-      deleteTaskFirebase(taskId).catch(console.error);
+    
+    if (useRemote && userId) {
+      try {
+        await deleteTaskSupabase(userId, taskId);
+      } catch (error) {
+        console.error('Errore eliminazione task:', error);
+      }
     }
   }
 

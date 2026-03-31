@@ -8,9 +8,10 @@ interface TaskDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTaskUpdated: () => void;
+  userId: string;
 }
 
-const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose, onTaskUpdated }) => {
+const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose, onTaskUpdated, userId }) => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState<Category>(Category.Work);
@@ -48,7 +49,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
     return from <= to;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isValidRecurrenceRange()) {
       alert('Intervallo ricorrenza non valido: da deve essere minore o uguale a a.');
       return;
@@ -62,7 +63,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
         }
       : undefined;
 
-    TaskService.updateTask(task.id, {
+    await TaskService.updateTask(userId, task!.id, {
       title,
       date: recurrence ? new Date(recurrenceFrom) : new Date(date),
       category,
